@@ -1,0 +1,221 @@
+Sub SendReminderEmails()
+
+    Dim wb As Workbook
+
+    Dim ws As Worksheet
+
+    Dim olApp As Object
+
+    Dim olMail As Object
+
+    Dim filePath As String
+
+    Dim lastRow As Long, i As Long
+
+    Dim uniqueEventIDs As Collection
+
+    Dim eventID As Variant
+
+    Dim emailContent As String
+
+    Dim filteredRange As Range
+
+    Dim row As Range
+
+    Dim currentSignature As String
+
+ 
+
+    ' Prompt user to select the Excel file
+
+    filePath = Application.GetOpenFilename("Excel Files (*.xlsx), *.xlsx")
+
+    If filePath = "False" Then Exit Sub ' Cancel if no file is selected
+
+ 
+
+    ' Open the workbook
+
+    Set wb = Workbooks.Open(filePath)
+
+    Set ws = wb.Sheets(1) ' Assumes data is in the first sheet
+
+ 
+
+    ' Enable Autofilter
+
+    If ws.AutoFilterMode = False Then
+
+        ws.Range("A1").AutoFilter
+
+    End If
+
+ 
+
+    ' Get the last row of data
+
+    lastRow = ws.Cells(ws.Rows.Count, "B").End(xlUp).row
+
+   
+
+    ' Collect unique Event IDs from Column N (EV Event ID)
+
+    Set uniqueEventIDs = New Collection
+
+    On Error Resume Next
+
+    For i = 2 To lastRow
+
+        uniqueEventIDs.Add ws.Cells(i, "N").Value, CStr(ws.Cells(i, "N").Value) ' Column N is "EV Event ID"
+
+    Next i
+
+    On Error GoTo 0
+
+ 
+
+    ' Set up Outlook application
+
+    Set olApp = CreateObject("Outlook.Application")
+
+ 
+
+    ' Loop through each unique Event ID
+
+    For Each eventID In uniqueEventIDs
+
+        ' Apply filter for the current Event ID (EV Event ID is in Column N)
+
+        ws.Range("A1").AutoFilter Field:=14, Criteria1:=eventID ' Column N (EV Event ID)
+
+ 
+
+        ' Check if there are visible rows (excluding the header)
+
+        On Error Resume Next
+
+        Set filteredRange = ws.Range("B2:AL" & lastRow).SpecialCells(xlCellTypeVisible)
+
+        On Error GoTo 0
+
+ 
+
+        If Not filteredRange Is Nothing Then
+
+            ' Create and display the email first to capture the default signature
+
+            Set olMail = olApp.CreateItem(0)
+
+            olMail.Display ' Display first to get the signature
+
+ 
+
+            ' Store the current signature content
+
+            currentSignature = olMail.HTMLBody
+
+ 
+
+            ' Prepare email content
+
+            emailContent = "Greetings of the day," & "<br><br>" ' Extra line after greeting
+
+            emailContent = emailContent & "This is a kind reminder for the following critical tasks to be completed and marked as completed on Field Vision." & "<br><br>"
+
+ 
+
+            ' Create table headers
+
+            emailContent = emailContent & "<table border='1' cellspacing='0' cellpadding='3'><tr>"
+
+            emailContent = emailContent & "<th>Days Remaining</th><th>Site Name</th><th>Event Type</th><th>Contract Type</th><th>GTM Planning ID</th><th>Event ID</th><th>Activity ID</th><th>Activity Title</th><th>Task Due Date</th><th>CPM Name</th><th>CPM SSO</th></tr>"
+
+ 
+
+            ' Loop through each visible row and add it to the email table
+
+            For Each row In filteredRange.Rows
+
+                emailContent = emailContent & "<tr>"
+
+                emailContent = emailContent & "<td>" & row.Cells(1, 1).Value & "</td>" ' Days Remaining (Column B)
+
+                emailContent = emailContent & "<td>" & row.Cells(1, 4).Value & "</td>" ' Site Name (Column E)
+
+                emailContent = emailContent & "<td>" & row.Cells(1, 6).Value & "</td>" ' Event Type (Column G)
+
+                emailContent = emailContent & "<td>" & row.Cells(1, 8).Value & "</td>" ' Contract Type (Column I)
+
+                emailContent = emailContent & "<td>" & row.Cells(1, 12).Value & "</td>" ' GTM Planning ID (Column M)
+
+                emailContent = emailContent & "<td>" & row.Cells(1, 13).Value & "</td>" ' Event ID (Column N)
+
+                emailContent = emailContent & "<td>" & row.Cells(1, 14).Value & "</td>" ' Activity ID (Column O)
+
+                emailContent = emailContent & "<td>" & row.Cells(1, 16).Value & "</td>" ' Activity Title (Column Q)
+
+                emailContent = emailContent & "<td>" & row.Cells(1, 19).Value & "</td>" ' Task Due Date (Column T)
+
+                emailContent = emailContent & "<td>" & row.Cells(1, 37).Value & "</td>" ' CPM Name (Column AL)
+
+                emailContent = emailContent & "<td>" & row.Cells(1, 38).Value & "</td>" ' CPM SSO (Column AM)
+
+                emailContent = emailContent & "</tr>"
+
+            Next row
+
+ 
+
+            emailContent = emailContent & "</table><br><br>" ' Adding space before signature
+
+ 
+
+            ' Update email body with custom content followed by signature
+
+            olMail.HTMLBody = emailContent & currentSignature
+
+            olMail.Subject = "Reminder: Critical Tasks for Event ID " & eventID
+
+ 
+
+            ' Display the email for review
+
+            olMail.Display
+
+        Else
+
+            MsgBox "No visible rows for Event ID " & eventID & ". Please check if there is any matching data.", vbExclamation
+
+        End If
+
+ 
+
+        ' Clear the filter
+
+        ws.AutoFilter.ShowAllData
+
+    Next eventID
+
+ 
+
+    ' Clean up
+
+    wb.Close False
+
+    Set wb = Nothing
+
+    Set ws = Nothing
+
+    Set olMail = Nothing
+
+    Set olApp = Nothing
+
+ 
+
+    MsgBox "Emails created successfully!", vbInformation
+
+End Sub
+
+ 
+
+ 
